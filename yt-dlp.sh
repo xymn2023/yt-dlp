@@ -10,6 +10,9 @@ gl_bai='\033[0m'
 gl_zi='\033[35m'
 gl_kjlan='\033[96m'
 
+# GitHub 仓库中的脚本URL
+GITHUB_SCRIPT_URL="https://raw.githubusercontent.com/xymn2023/yt-dlp/main/yt-dlp.sh"
+
 # 安装依赖
 install_yt_dlp_dependency() {
     local packages=("python3" "python3-pip" "wget" "unzip" "tar" "jq" "grep" "ffmpeg")
@@ -161,6 +164,56 @@ uninstall_yt_dlp_function() {
     fi
 }
 
+# 更新脚本自身
+update_self_script() {
+    local SCRIPT_PATH
+    SCRIPT_PATH=$(readlink -f "$0")
+    local TEMP_SCRIPT="/tmp/yt-dlp_temp_update_script.sh"
+
+    echo -e "${gl_huang}正在从 GitHub 检查脚本更新...${gl_bai}"
+    if command -v curl &>/dev/null; then
+        curl -sL "$GITHUB_SCRIPT_URL" -o "$TEMP_SCRIPT"
+    elif command -v wget &>/dev/null; then
+        wget -qO "$TEMP_SCRIPT" "$GITHUB_SCRIPT_URL"
+    else
+        echo -e "${gl_hong}未找到 curl 或 wget，无法下载更新。请手动更新脚本。${gl_bai}"
+        break_end
+        return 1
+    fi
+
+    if [ ! -f "$TEMP_SCRIPT" ]; then
+        echo -e "${gl_hong}下载最新脚本失败。请检查网络连接或 GitHub URL。${gl_bai}"
+        break_end
+        return 1
+    fi
+
+    # 比较文件内容，判断是否有更新
+    if diff -q "$SCRIPT_PATH" "$TEMP_SCRIPT" &>/dev/null; then
+        echo -e "${gl_lv}当前脚本已是最新版本，无需更新。${gl_bai}"
+        rm -f "$TEMP_SCRIPT"
+    else
+        echo -e "${gl_huang}检测到新版本脚本！${gl_bai}"
+        read -e -p "是否立即更新？(y/N): " confirm_update
+        confirm_update=${confirm_update:-N}
+
+        if [[ "$confirm_update" =~ ^[Yy]$ ]]; then
+            echo -e "${gl_huang}正在备份旧脚本并替换为新脚本...${gl_bai}"
+            mv "$SCRIPT_PATH" "${SCRIPT_PATH}.bak" # 备份旧脚本
+            mv "$TEMP_SCRIPT" "$SCRIPT_PATH"     # 替换新脚本
+            chmod +x "$SCRIPT_PATH"              # 确保新脚本有执行权限
+
+            echo -e "${gl_lv}脚本更新成功！${gl_bai}"
+            echo -e "${gl_lv}请注意：为了使用新功能，您需要重新运行脚本。${gl_bai}"
+            break_end
+            exit 0 # 更新后退出脚本，提示用户重新运行
+        else
+            echo -e "${gl_lv}脚本更新已取消。${gl_bai}"
+            rm -f "$TEMP_SCRIPT"
+        fi
+    fi
+    break_end
+}
+
 
 # yt-dlp主菜单
 yt_menu_pro() {
@@ -173,8 +226,9 @@ yt_menu_pro() {
         echo "1. 下载视频或音频"
         echo "2. 更新 yt-dlp"
         echo "3. 查看 yt-dlp 版本"
-        echo "4. 检查更新"
-        echo "5. 卸载 yt-dlp 及相关文件" 
+        echo "4. 检查 yt-dlp 更新" # 措辞改为“检查 yt-dlp 更新”
+        echo "5. 更新脚本自身"     # 新增脚本自身更新选项
+        echo "6. 卸载 yt-dlp 及相关文件" 
         echo "------------------------------------------------"
         echo "0. 返回主菜单"
         echo "------------------------------------------------"
@@ -230,6 +284,7 @@ yt_menu_pro() {
                 ;;
             4)
                 echo -e "${gl_huang}正在检查 yt-dlp 更新...${gl_bai}"
+                # 检查 yt-dlp 包是否有更新（不更新，只检查）
                 pip3 install --upgrade --no-deps yt-dlp 2>&1 | grep -q 'Requirement already satisfied'
                 if [ $? -eq 0 ]; then
                     echo -e "${gl_lv}yt-dlp 已是最新版本。${gl_bai}"
@@ -238,7 +293,10 @@ yt_menu_pro() {
                 fi
                 break_end
                 ;;
-            5) 
+            5) # 新增的脚本自身更新功能
+                update_self_script
+                ;;
+            6) # 卸载选项顺序调整
                 uninstall_yt_dlp_function
                 ;;
             0)
