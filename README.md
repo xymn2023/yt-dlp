@@ -7,11 +7,11 @@ yt-dlp下载转码一体脚本
 curl -sL https://raw.githubusercontent.com/xymn2023/yt-dlp/main/yt-dlp.sh -o yt-dlp.sh && chmod +x yt-dlp.sh && ./yt-dlp.sh
 ```
 
-**注意**自建一个目录存放本项目.
+**注意**：自建一个目录存放本项目.
 
-**注意**自建一个目录存放本项目.
+**注意**：自建一个目录存放本项目.
 
-**注意**自建一个目录存放本项目.
+**注意**：自建一个目录存放本项目.
 
 
 
