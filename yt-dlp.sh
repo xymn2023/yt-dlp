@@ -12,36 +12,28 @@ gl_kjlan='\033[96m'
 
 # 安装依赖
 install_yt_dlp_dependency() {
-    # 增加了 ffmpeg 到依赖列表中
     local packages=("python3" "python3-pip" "wget" "unzip" "tar" "jq" "grep" "ffmpeg")
     local success=true
     for package in "${packages[@]}"; do
         if ! command -v "$package" &>/dev/null; then
-            echo -e "${gl_huang}正在安装 $package...${gl_bai}"
+            echo -e "${gl_huang}正在尝试安装 $package...${gl_bai}"
+            # 尝试使用 sudo 进行安装
             if command -v dnf &>/dev/null; then
-                dnf -y update
-                dnf install -y epel-release "$package"
+                sudo dnf -y update && sudo dnf install -y epel-release "$package" || success=false
             elif command -v yum &>/dev/null; then
-                yum -y update
-                yum install -y epel-release "$package"
+                sudo yum -y update && sudo yum install -y epel-release "$package" || success=false
             elif command -v apt &>/dev/null; then
-                apt update -y
-                apt install -y "$package"
+                sudo apt update -y && sudo apt install -y "$package" || success=false
             elif command -v apk &>/dev/null; then
-                apk update
-                apk add "$package"
+                sudo apk update && sudo apk add "$package" || success=false
             elif command -v pacman &>/dev/null; then
-                pacman -Syu --noconfirm
-                pacman -S --noconfirm "$package"
+                sudo pacman -Syu --noconfirm && sudo pacman -S --noconfirm "$package" || success=false
             elif command -v zypper &>/dev/null; then
-                zypper refresh
-                zypper install -y "$package"
+                sudo zypper refresh && sudo zypper install -y "$package" || success=false
             elif command -v opkg &>/dev/null; then
-                opkg update
-                opkg install "$package"
+                sudo opkg update && sudo opkg install "$package" || success=false
             elif command -v pkg &>/dev/null; then
-                pkg update
-                pkg install -y "$package"
+                sudo pkg update && sudo pkg install -y "$package" || success=false
             else
                 echo -e "${gl_hong}未知的包管理器，请手动安装 $package。${gl_bai}"
                 success=false
@@ -52,7 +44,8 @@ install_yt_dlp_dependency() {
     # 额外安装 yt-dlp
     if ! command -v yt-dlp &>/dev/null; then
         echo -e "${gl_huang}正在安装 yt-dlp...${gl_bai}"
-        pip3 install yt-dlp || success=false
+        # pip 安装 yt-dlp 优先尝试用户目录安装，如果失败则尝试全局安装（可能需要 sudo）
+        pip3 install --user yt-dlp || sudo pip3 install yt-dlp || success=false
     fi
     return "$success"
 }
@@ -99,20 +92,75 @@ check_or_install_yt_dlp() {
         else
             echo -e "${gl_hong}ffmpeg 安装失败，yt-dlp 的某些功能可能受限。请手动安装 ffmpeg。${gl_bai}"
             break_end
-            # 注意：这里返回0允许脚本继续运行，但用户已被警告功能受限。
-            # 如果希望强制 ffmpeg 存在才能继续，这里可以返回1。
-            # 当前设置为返回0，即警告后仍可使用部分功能。
             return 0 
         fi
     fi
     
-    # 如果两个都安装成功，则返回0
     if "$yt_dlp_installed" && "$ffmpeg_installed"; then
         return 0
     else
         return 1
     fi
 }
+
+# 卸载 yt-dlp 及相关文件
+uninstall_yt_dlp_function() {
+    local SCRIPT_DIR
+    SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+
+    clear
+    echo -e "${gl_hong}=== 警告：卸载操作 ===${gl_bai}"
+    echo -e "${gl_huang}此操作将执行以下删除：${gl_bai}"
+    echo "- ${gl_lv}yt-dlp 程序（通过 pip3 安装的部分）${gl_bai}"
+    echo "- ${gl_lv}ffmpeg （如果是由包管理器安装）${gl_bai}"
+    echo "- ${gl_lv}本脚本文件 (yt-dlp.sh)${gl_bai}"
+    echo "- ${gl_lv}本脚本所在的目录及其所有内容： ${SCRIPT_DIR}/${gl_bai}"
+    echo -e "  (这包括所有由 yt-dlp 下载到此目录的视频、音频或其他文件)"
+    echo -e "${gl_hong}重要提示：${gl_bai}"
+    echo -e "${gl_hong}像 python3, pip3, wget, unzip, tar, jq, grep 等核心系统工具非常重要，不建议自动卸载。${gl_bai}"
+    echo -e "${gl_hong}本脚本不会自动卸载它们。如需卸载，请您自行判断并手动使用'sudo apt remove/dnf remove/yum remove'等命令。${gl_bai}"
+    echo ""
+    read -e -p "您确定要继续卸载吗？(y/N): " confirm_uninstall
+    confirm_uninstall=${confirm_uninstall:-N}
+
+    if [[ "$confirm_uninstall" =~ ^[Yy]$ ]]; then
+        echo -e "${gl_huang}正在尝试卸载 yt-dlp...${gl_bai}"
+        # 尝试卸载 yt-dlp，优先卸载用户安装的，如果失败则尝试全局（可能需要 sudo）
+        pip3 uninstall -y yt-dlp &>/dev/null || sudo pip3 uninstall -y yt-dlp &>/dev/null || true 
+        
+        echo -e "${gl_huang}正在尝试卸载 ffmpeg...${gl_bai}"
+        # 尝试使用 sudo 卸载 ffmpeg
+        if command -v dnf &>/dev/null; then
+            sudo dnf -y remove ffmpeg || true
+        elif command -v yum &>/dev/null; then
+            sudo yum -y remove ffmpeg || true
+        elif command -v apt &>/dev/null; then
+            sudo apt -y remove ffmpeg || true
+        elif command -v apk &>/dev/null; then
+            sudo apk del ffmpeg || true
+        elif command -v pacman &>/dev/null; then
+            sudo pacman -Rs --noconfirm ffmpeg || true
+        elif command -v zypper &>/dev/null; then
+            sudo zypper -y remove ffmpeg || true
+        elif command -v opkg &>/dev/null; then
+            sudo opkg remove ffmpeg || true
+        elif command -v pkg &>/dev/null; then
+            sudo pkg remove ffmpeg || true
+        else
+            echo -e "${gl_hong}未知的包管理器，无法自动卸载 ffmpeg。请手动卸载。${gl_bai}"
+        fi
+
+        echo -e "${gl_huang}正在删除脚本文件和目录：${SCRIPT_DIR}...${gl_bai}"
+        rm -rf "$SCRIPT_DIR" &>/dev/null & disown
+        echo -e "${gl_lv}yt-dlp 及相关文件已成功删除。${gl_bai}"
+        echo -e "${gl_lv}请注意：其他核心系统依赖可能仍然存在，如需卸载请手动操作。${gl_bai}"
+        exit 0 
+    else
+        echo -e "${gl_lv}卸载操作已取消。${gl_bai}"
+        break_end
+    fi
+}
+
 
 # yt-dlp主菜单
 yt_menu_pro() {
@@ -126,6 +174,7 @@ yt_menu_pro() {
         echo "2. 更新 yt-dlp"
         echo "3. 查看 yt-dlp 版本"
         echo "4. 检查更新"
+        echo "5. 卸载 yt-dlp 及相关文件" 
         echo "------------------------------------------------"
         echo "0. 返回主菜单"
         echo "------------------------------------------------"
@@ -151,10 +200,6 @@ yt_menu_pro() {
 
                     case $video_quality_choice in
                         1)
-                            # yt-dlp 格式代码：优先4K -> 2K -> 1080P，如果都不支持则选择最佳。
-                            # 这里的逻辑是：尝试找2160p (4K) 的视频流和最佳音频，如果不行，
-                            # 则尝试1440p (2K) 的视频流和最佳音频，如果还不行，
-                            # 则尝试1080p 的视频流和最佳音频，最后退回到yt-dlp认为的“最佳”格式。
                             video_format_string="bestvideo[height=2160]+bestaudio/bestvideo[height=1440]+bestaudio/bestvideo[height=1080]+bestaudio/best"
                             echo -e "${gl_lv}将尝试按 4K -> 2K -> 1080P 优先级下载视频...${gl_bai}"
                             yt-dlp -f "$video_format_string" "$url"
@@ -174,7 +219,8 @@ yt_menu_pro() {
                 ;;
             2)
                 echo -e "${gl_huang}正在更新 yt-dlp...${gl_bai}"
-                pip3 install --upgrade yt-dlp
+                # pip 安装 yt-dlp 优先尝试用户目录安装，如果失败则尝试全局安装（可能需要 sudo）
+                pip3 install --user --upgrade yt-dlp || sudo pip3 install --upgrade yt-dlp
                 break_end
                 ;;
             3)
@@ -191,6 +237,9 @@ yt_menu_pro() {
                     echo -e "${gl_huang}yt-dlp 有可用更新，请选择选项2进行更新。${gl_bai}"
                 fi
                 break_end
+                ;;
+            5) 
+                uninstall_yt_dlp_function
                 ;;
             0)
                 break
